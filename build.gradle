@@ -1,0 +1,97 @@
+buildscript {
+    repositories { jcenter() }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+    }
+}
+
+apply plugin: 'groovy'
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'application'
+mainClassName = "io.vertx.core.Launcher"
+
+def vertxVersion = '3.3.2'
+def appVersion = '0.0.1'
+
+if (!JavaVersion.current().java8Compatible) {
+    throw new IllegalStateException('''A Haiku:
+                                      |  This needs Java 8,
+                                      |  You are using something else,
+                                      |  Refresh. Try again.'''.stripMargin())
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+    maven { url = "http://twitter4j.org/maven2" }
+
+}
+
+configurations {
+  ivy
+}
+dependencies {
+    ivy group: 'org.apache.ivy', name: 'ivy', version: '2.4.0'
+    compile "io.vertx:vertx-auth-jwt:$vertxVersion"
+    compile "io.vertx:vertx-core:$vertxVersion"
+    compile "io.vertx:vertx-redis-client:$vertxVersion"
+    compile "io.vertx:vertx-lang-groovy:$vertxVersion"
+    compile "io.vertx:vertx-mail-client:$vertxVersion"
+    compile "io.vertx:vertx-unit:$vertxVersion"
+    compile "io.vertx:vertx-web:$vertxVersion"
+    compile "com.notnoop.apns:apns:1.0.0.Beta5"
+    compile "org.apache.ivy:ivy:2.4.0"
+    compile group: 'junit', name: 'junit', version: '4.+'
+}
+
+processResources {
+    from 'src/main/groovy'
+    from 'src/main/resources'
+}
+
+shadowJar {
+    baseName = 'elopadel'
+    classifier = 'fat'
+    version = "$appVersion"
+    manifest {
+        attributes 'Main-Class': 'io.vertx.core.Starter'
+        attributes 'Main-Verticle': 'WebServer.groovy'
+    }
+    mergeServiceFiles {
+        include 'META-INF/services/io.vertx.core.spi.VerticleFactory'
+    }
+}
+
+tasks.withType(GroovyCompile) {
+  groovyClasspath += configurations.ivy
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.0'
+}
+
+task copyLibs(type: Copy) {
+    from configurations.runtime
+    into 'vertxlib'
+}
+
+run {
+  args = ["run", "demo.groovy",
+    "--redeploy=**/*.groovy",
+    "--launcher-class=io.vertx.core.Launcher"]
+}
+
+test {
+  testLogging {
+      // Show that tests are run in the command-line output
+      //events 'started', 'passed'
+      events 'passed'
+      showStandardStreams = true
+  }
+  // configure java.util.logging for the test JVM(s)
+  // Dosn't work anyway: @see https://issues.gradle.org/browse/GRADLE-2524
+  // Maybe requieres abslote path?
+  //systemProperty 'java.util.logging.config.file', 'src/main/resources/vertx-default-jul-logging.properties'
+}
